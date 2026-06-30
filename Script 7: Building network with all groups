@@ -1,4 +1,4 @@
-# ============================================================
+
 # Script 07: ALL Network, Edge Table & Summary Statistics
 # Use : Build the combined "ALL" network (all gene types
 #          together), export it, and generate the edge table and
@@ -7,7 +7,7 @@
 # Output:  ALL_network_clean.graphml, ALL_network_edge_table.csv,
 #          ALL_network_summary_table.csv (or PDF) 
 # Author:  Hafsa Benouahi — MSc Biomedical Sciences, VU Amsterdam - Intern IRAS UU 
-# ============================================================
+
 
 library(igraph)
 library(dplyr)
