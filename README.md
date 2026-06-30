@@ -66,7 +66,7 @@ Output `.graphml` files are saved to `~/Desktop/METALBIO/` by default. Graphml f
 - Colour edges by the `direction` attribute (positive/negative correlation) and use RHO for thickness 
 - Colour nodes by the `color_by` attribute (Class for within-type networks, GeneType for cross-type networks)
 
-
+Result previews can be found in Output file 
 
 Citation
 
