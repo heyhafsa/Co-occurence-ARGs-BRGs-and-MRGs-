@@ -60,12 +60,11 @@ Run the scripts in numerical order
 Output `.graphml` files are saved to `~/Desktop/METALBIO/` by default. Graphml files are only opened via Gephi 
 
 5. Visualising networks in Gephi
-
-1. Open a `.graphml` file in Gephi
-2. Apply the Fruchterman-Reingold layout
-3. Size nodes by degree
-4. Colour edges by the `direction` attribute (positive/negative correlation)
-5. Colour nodes by the `color_by` attribute (Class for within-type networks, GeneType for cross-type networks)
+- Open a `.graphml` file in Gephi
+- Apply the Fruchterman-Reingold layout
+- Size nodes by degree
+- Colour edges by the `direction` attribute (positive/negative correlation) and use RHO for thickness 
+- Colour nodes by the `color_by` attribute (Class for within-type networks, GeneType for cross-type networks)
 
 
 
