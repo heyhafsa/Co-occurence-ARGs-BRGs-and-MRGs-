@@ -1,0 +1,33 @@
+# ============================================================
+# Script 02: Prevalence Filtering
+# Use: Remove low-prevalence genes before correlation analysis,
+#          to avoid correlations driven by near-zero inflation.
+# Input:   `fpkm` phyloseq object (output of script 01)
+# Output:  `ps_filtered` phyloseq object, `abund` abundance matrix
+# Author:  Hafsa Benouahi — MSc Biomedical Sciences, VU Amsterdam - Intern IRAS UU 
+# ============================================================
+
+library(phyloseq)
+
+# Keep genes present (non-zero) in at least 10% of samples
+n_samples <- nsamples(fpkm)
+prevalence_threshold <- 0.10
+
+otu_mat <- as.data.frame(otu_table(fpkm))
+prevalence <- rowSums(otu_mat > 0) / n_samples
+genes_keep <- names(prevalence[prevalence >= prevalence_threshold])
+
+ps_filtered <- prune_taxa(genes_keep, fpkm)
+cat("Genes after prevalence filter (>=10%):", ntaxa(ps_filtered), "\n")
+# Expected: 464  (of 1303)
+
+# Extract the abundance matrix in samples x genes orientation,
+# required for correlation analysis in the next script.
+if (taxa_are_rows(ps_filtered)) {
+  abund <- t(as.matrix(otu_table(ps_filtered)))
+} else {
+  abund <- as.matrix(otu_table(ps_filtered))
+}
+
+cat("Abundance matrix dimensions:", dim(abund), "\n")
+# Expected: 72 464  (samples x genes)
