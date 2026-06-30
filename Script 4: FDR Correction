@@ -1,0 +1,30 @@
+# ============================================================
+# Script 04: FDR Correction & Significance Thresholds
+# Use: Adjust p-values for multiple testing (Benjamini-Hochberg)
+#          and apply Cornu Hewitt significance threshold to define
+#          which gene pairs count as "co-occurring".
+# Input:   `cor_matrix`, `pval_matrix` (output of script 03)
+# Output:  `padj_mat`, `sig_mat` (boolean matrix of significant edges)
+# Author:  Hafsa Benouahi — MSc Biomedical Sciences, VU Amsterdam - Intern IRAS UU 
+
+
+# Benjamini-Hochberg FDR correction across all unique pairs
+pvals_vec <- pval_matrix[upper.tri(pval_matrix)]
+padj_vec  <- p.adjust(pvals_vec, method = "BH")
+
+padj_mat <- matrix(NA, nrow(pval_matrix), ncol(pval_matrix),
+                    dimnames = dimnames(pval_matrix))
+padj_mat[upper.tri(padj_mat)] <- padj_vec
+padj_mat[lower.tri(padj_mat)] <- t(padj_mat)[lower.tri(padj_mat)]
+diag(padj_mat) <- 1
+
+# Apply threshold from Cornu Hewitt et al. (2024):
+# |rho| >= 0.6 AND padj < 0.01
+rho_threshold  <- 0.6
+padj_threshold <- 0.01
+
+sig_mat <- (abs(cor_matrix) >= rho_threshold) & (padj_mat < padj_threshold)
+diag(sig_mat) <- FALSE
+
+cat("Total significant gene pairs (strict threshold):",
+    sum(sig_mat[upper.tri(sig_mat)]), "\n")
