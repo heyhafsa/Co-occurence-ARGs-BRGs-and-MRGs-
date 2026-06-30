@@ -1,0 +1,21 @@
+# ============================================================
+# Script 03: Pairwise Spearman Correlation
+# Use: Compute Spearman rank correlations and p-values for
+#          every gene pair, as the basis for co-occurrence networks.
+# Input:   `abund` matrix (output of script 02)
+# Output:  `cor_matrix`, `pval_matrix` (genes x genes)
+# Author:  Hafsa Benouahi — MSc Biomedical Sciences, VU Amsterdam
+# ============================================================
+
+library(Hmisc)
+
+cor_res <- Hmisc::rcorr(abund, type = "spearman")
+
+cor_matrix  <- cor_res$r   # genes x genes Spearman rho matrix
+pval_matrix <- cor_res$P   # genes x genes raw p-value matrix
+
+diag(cor_matrix)  <- 0
+diag(pval_matrix) <- 1
+
+cat("Correlation matrix dimensions:", dim(cor_matrix), "\n")
+# Expected: 464 464
