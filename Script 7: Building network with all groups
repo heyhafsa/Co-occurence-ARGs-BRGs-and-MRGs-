@@ -1,0 +1,136 @@
+# ============================================================
+# Script 07: ALL Network, Edge Table & Summary Statistics
+# Use : Build the combined "ALL" network (all gene types
+#          together), export it, and generate the edge table and
+#          summary statistics table used in the thesis results.
+# Input:   `rho_mat`, `padj_mat`, `tax_agg` (from script 06)
+# Output:  ALL_network_clean.graphml, ALL_network_edge_table.csv,
+#          ALL_network_summary_table.csv (or PDF) 
+# Author:  Hafsa Benouahi — MSc Biomedical Sciences, VU Amsterdam - Intern IRAS UU 
+# ============================================================
+
+library(igraph)
+library(dplyr)
+library(scales)
+library(ggplot2)
+
+
+# 1. Build the ALL network (every gene type, all significant edges)
+
+sig_mat <- (padj_mat < 0.01) & (abs(rho_mat) >= 0.6)
+diag(sig_mat) <- FALSE
+
+g <- igraph::graph_from_adjacency_matrix(sig_mat, mode = "undirected", weighted = NULL)
+g <- igraph::delete_vertices(g, igraph::degree(g) == 0)
+
+el <- igraph::as_edgelist(g)
+edge_rho  <- mapply(function(a, b) rho_mat[a, b],  el[, 1], el[, 2])
+edge_padj <- mapply(function(a, b) padj_mat[a, b], el[, 1], el[, 2])
+
+igraph::E(g)$rho       <- edge_rho
+igraph::E(g)$padj      <- edge_padj
+igraph::E(g)$direction <- ifelse(edge_rho > 0, "positive", "negative")
+igraph::E(g)$weight    <- abs(edge_rho)
+igraph::E(g)$thickness <- scales::rescale(abs(edge_rho), to = c(1, 10))
+
+igraph::V(g)$GeneType <- tax_agg[igraph::V(g)$name, "GeneType"]
+igraph::V(g)$Class    <- tax_agg[igraph::V(g)$name, "Class"]
+igraph::V(g)$size     <- 10
+igraph::V(g)$label    <- igraph::V(g)$name |>
+  (\(x) gsub("_Metals|_Biocides|_Multi-compound|_Antibiotic", "", x))() |>
+  (\(x) gsub("_clust|_cluster|_ARG", "", x))()
+
+igraph::write_graph(g, "~/Desktop/METALBIO/ALL_network_clean.graphml", format = "graphml")
+cat("ALL network saved. Edges:", igraph::ecount(g), "\n")
+
+# 2. Build the full edge table (one row per significant edge)
+edge_table <- data.frame(
+  Gene_A    = el[, 1],
+  Gene_B    = el[, 2],
+  rho       = igraph::E(g)$rho,
+  padj      = igraph::E(g)$padj,
+  direction = igraph::E(g)$direction,
+  Type_A    = tax_agg[el[, 1], "GeneType"],
+  Type_B    = tax_agg[el[, 2], "GeneType"]
+) %>%
+  mutate(
+    Gene_A = gsub("_Metals|_Biocides|_Multi-compound|_clust|_ARG", "", Gene_A),
+    Gene_B = gsub("_Metals|_Biocides|_Multi-compound|_clust|_ARG", "", Gene_B),
+    rho    = round(rho, 3),
+    padj   = signif(padj, 3)
+  ) %>%
+  arrange(Type_A, Type_B, desc(abs(rho)))
+
+write.csv(edge_table, "~/Desktop/METALBIO/ALL_network_edge_table.csv", row.names = FALSE)
+
+cat("Total edges:", nrow(edge_table), "\n")
+cat("ARG-MRG edges:", sum((edge_table$Type_A == "ARG" & edge_table$Type_B == "MRG") |
+                           (edge_table$Type_A == "MRG" & edge_table$Type_B == "ARG")), "\n")
+cat("ARG-BRG edges:", sum((edge_table$Type_A == "ARG" & edge_table$Type_B == "BRG") |
+                           (edge_table$Type_A == "BRG" & edge_table$Type_B == "ARG")), "\n")
+cat("MRG-BRG edges:", sum((edge_table$Type_A == "MRG" & edge_table$Type_B == "BRG") |
+                           (edge_table$Type_A == "BRG" & edge_table$Type_B == "MRG")), "\n")
+
+
+# 3. Summary table by gene-type pair
+edge_table_summary <- data.frame(
+  rho    = igraph::E(g)$rho,
+  Type_A = tax_agg[el[, 1], "GeneType"],
+  Type_B = tax_agg[el[, 2], "GeneType"]
+) %>%
+  mutate(
+    rho       = round(rho, 3),
+    pair_type = paste(pmin(Type_A, Type_B), pmax(Type_A, Type_B), sep = " - ")
+  ) %>%
+  dplyr::select(pair_type, rho) %>%
+  group_by(pair_type) %>%
+  summarise(
+    n_edges  = n(),
+    mean_rho = round(mean(abs(rho)), 3),
+    max_rho  = round(max(abs(rho)), 3),
+    min_rho  = round(min(abs(rho)), 3),
+    .groups  = "drop"
+  ) %>%
+  arrange(desc(n_edges))
+
+print(edge_table_summary)
+write.csv(edge_table_summary, "~/Desktop/METALBIO/ALL_network_summary_table.csv", row.names = FALSE)
+
+
+# 4. Optional: formatted PDF table for presentation / report use
+
+library(gridExtra)
+library(grid)
+
+edge_table_final <- edge_table_summary %>%
+  rename(
+    "Gene type pair"           = pair_type,
+    "Number of co-occurrences" = n_edges,
+    "Mean Spearman rho"        = mean_rho
+  )
+
+table_plot <- tableGrob(
+  edge_table_final,
+  rows = NULL,
+  theme = ttheme_minimal(
+    colhead = list(
+      fg_params = list(fontface = "bold", fontsize = 12),
+      bg_params = list(fill = "#2171b5", col = NA)
+    ),
+    core = list(
+      fg_params = list(fontsize = 11),
+      bg_params = list(fill = c("#f7fbff", "#deebf7"), col = NA)
+    )
+  )
+)
+
+title <- textGrob("Co-occurrence Summary by Gene Type Pair",
+                   gp = gpar(fontsize = 14, fontface = "bold"))
+subtitle <- textGrob("All edges: padj < 0.01, |rho| >= 0.6 | Spearman correlation",
+                      gp = gpar(fontsize = 10, col = "grey40"))
+
+final_table <- arrangeGrob(title, subtitle, table_plot,
+                            heights = c(0.08, 0.05, 0.87), ncol = 1)
+
+ggsave("~/Desktop/METALBIO/ALL_network_summary_table.pdf", final_table, width = 7, height = 6)
+cat("Summary PDF table saved.\n")
