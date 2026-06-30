@@ -1,0 +1,115 @@
+# ============================================================
+# Script 06: Build & Export Pairwise Co-occurrence Networks
+# Use: Construct the 6 pairwise gene-type networks (within-type
+#          and cross-type) and export each as a .graphml file for
+#          visualisation in Gephi.
+# Input:   `abund_clust` (samples x clusters), `tax_agg` (cluster
+#          metadata with GeneType column) — both from script 05
+# Output:  6 .graphml files saved to ~/Desktop/METALBIO/
+# Author:  Hafsa Benouahi — MSc Biomedical Sciences, VU Amsterdam - Intern IRAS UU 
+
+
+library(igraph)
+library(scales)
+
+# 1. Spearman correlation + BH-FDR correction on clustered data
+
+cor_res  <- Hmisc::rcorr(abund_clust, type = "spearman")
+rho_mat  <- cor_res$r
+pval_mat <- cor_res$P
+
+pval_vec <- pval_mat[upper.tri(pval_mat)]
+padj_vec <- p.adjust(pval_vec, method = "BH")
+
+padj_mat <- matrix(0, nrow(pval_mat), ncol(pval_mat))
+padj_mat[upper.tri(padj_mat)] <- padj_vec
+padj_mat <- padj_mat + t(padj_mat)
+rownames(padj_mat) <- colnames(padj_mat) <- rownames(rho_mat)
+
+
+# 2. Helper function: build + export one network
+
+# Apply threshold (|rho| >= 0.6, padj < 0.01).
+# For within-type networks (e.g. ARG-ARG), keep all edges among
+# that type. For cross-type networks (e.g. MRG-ARG), keep only
+# edges connecting the two specified types.
+build_network <- function(type_a, type_b, filename) {
+
+  is_within_type <- (type_a == type_b)
+
+  nodes_a <- rownames(tax_agg)[tax_agg$GeneType == type_a]
+  nodes_b <- rownames(tax_agg)[tax_agg$GeneType == type_b]
+
+  nodes_keep <- if (is_within_type) nodes_a else union(nodes_a, nodes_b)
+
+  rho_sub  <- rho_mat[nodes_keep, nodes_keep]
+  padj_sub <- padj_mat[nodes_keep, nodes_keep]
+
+  if (!is_within_type) {
+    mask <- matrix(FALSE, nrow(rho_sub), ncol(rho_sub),
+                    dimnames = list(nodes_keep, nodes_keep))
+    mask[nodes_a, nodes_b] <- TRUE
+    mask[nodes_b, nodes_a] <- TRUE
+  } else {
+    mask <- matrix(TRUE, nrow(rho_sub), ncol(rho_sub),
+                    dimnames = list(nodes_keep, nodes_keep))
+  }
+
+  sig_mat <- (padj_sub < 0.01) & (abs(rho_sub) >= 0.6) & mask
+  diag(sig_mat) <- FALSE
+
+  n_edges <- sum(sig_mat) / 2
+  cat(filename, "- Edges:", n_edges, "\n")
+  if (n_edges == 0) {
+    cat("  No significant edges, skipping.\n")
+    return(NULL)
+  }
+
+  g <- igraph::graph_from_adjacency_matrix(sig_mat, mode = "undirected", weighted = NULL)
+  g <- igraph::delete_vertices(g, igraph::degree(g) == 0)
+
+  el <- igraph::as_edgelist(g)
+  edge_rho  <- mapply(function(a, b) rho_sub[a, b],  el[, 1], el[, 2])
+  edge_padj <- mapply(function(a, b) padj_sub[a, b], el[, 1], el[, 2])
+
+  igraph::E(g)$rho       <- edge_rho
+  igraph::E(g)$padj      <- edge_padj
+  igraph::E(g)$direction <- ifelse(edge_rho > 0, "positive", "negative")
+  igraph::E(g)$weight    <- abs(edge_rho)
+  igraph::E(g)$thickness <- scales::rescale(abs(edge_rho), to = c(1, 10))
+
+  igraph::V(g)$GeneType <- tax_agg[igraph::V(g)$name, "GeneType"]
+  igraph::V(g)$Class    <- tax_agg[igraph::V(g)$name, "Class"]
+  igraph::V(g)$size     <- 10
+
+  # Colour attribute: by Class / Group for within-type networks,
+  # by GeneType for cross-type networks (clearer separation of the two groups)
+  igraph::V(g)$color_by <- if (is_within_type) {
+    tax_agg[igraph::V(g)$name, "Class"]
+  } else {
+    tax_agg[igraph::V(g)$name, "GeneType"]
+  }
+
+  # Clean, readable node labels (strip internal suffixes)
+  igraph::V(g)$label <- igraph::V(g)$name |>
+    gsub("_Metals|_Biocides|_Multi-compound|_Antibiotic", "", x = _) |>
+    gsub("_clust|_cluster|_ARG", "", x = _)
+
+  path <- paste0("~/Desktop/METALBIO/", filename, ".graphml")
+  igraph::write_graph(g, path, format = "graphml")
+  cat("  Saved:", path, "\n")
+
+  return(g)
+}
+
+
+# 3. Build all 6 pairwise networks
+
+cat("Building networks...\n\n")
+g_ARG_ARG <- build_network("ARG", "ARG", "clust90_ARG_ARG_rho")
+g_MRG_MRG <- build_network("MRG", "MRG", "clust90_MRG_MRG_rho")
+g_BRG_BRG <- build_network("BRG", "BRG", "clust90_BRG_BRG_rho")
+g_MRG_ARG <- build_network("MRG", "ARG", "clust90_MRG_ARG_rho")
+g_MRG_BRG <- build_network("MRG", "BRG", "clust90_MRG_BRG_rho")
+g_ARG_BRG <- build_network("ARG", "BRG", "clust90_ARG_BRG_rho")
+cat("\nAll 6 pairwise networks done!\n")
