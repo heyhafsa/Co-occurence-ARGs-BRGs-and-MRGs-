@@ -1,0 +1,64 @@
+# ============================================================
+# Script 05: Cluster90 Aggregation
+# Use: Collapse genes with >=90% sequence identity into single
+#          representative nodes (Cluster90). Cluster90 only exists
+#          for ARGs (Antibiotic) in this dataset — MRGs, BRGs, and
+#          Multi-compound genes were never run through 90% identity
+#          clustering, so they are kept at gene-level resolution
+# Input:   `abund` matrix, `ps_filtered` phyloseq object (tax_table
+#          must contain a `Cluster90` column)
+# Output:  `abund_clust` (samples x clusters), `tax_agg` (cluster
+#          metadata: Type, Class, GeneType)
+# Author:  Hafsa Benouahi — MSc Biomedical Sciences, VU Amsterdam - Intern IRAS UU 
+
+library(phyloseq)
+library(dplyr)
+
+tax_df <- as.data.frame(tax_table(ps_filtered))
+tax_df <- tax_df[colnames(abund), ]  # ensure same order/subset as abund
+
+
+# cluster mapping
+
+clust_map <- tax_df$Cluster90
+names(clust_map) <- rownames(tax_df)
+clust_map[is.na(clust_map)] <- names(clust_map)[is.na(clust_map)]
+
+cat("Genes with no Cluster90 assignment (kept at gene level):",
+    sum(tax_df$Type != "Antibiotic"), "\n")
+
+
+# Aggregate abundances within each cluster by summing
+# (rowsum() used here 
+abund_clust_t <- rowsum(t(abund), group = clust_map)
+abund_clust   <- t(abund_clust_t)  # back to samples x clusters
+
+cat("Genes before Cluster90:", ncol(abund), "\n")
+cat("Clusters after Cluster90:", ncol(abund_clust), "\n")
+# Expected: 265 ARGs -> 58 clusters, plus 199 MRG/BRG/Multi genes
+# unchanged => 58 + 199 = 257 total clusters
+
+
+# Build cluster-level metadata (one row per Cluster90 group)
+first_gene_per_cluster <- !duplicated(clust_map)
+tax_agg <- tax_df[first_gene_per_cluster, ]
+rownames(tax_agg) <- clust_map[first_gene_per_cluster]
+
+
+tax_agg <- tax_agg[colnames(abund_clust), ]
+
+# confirm row names line up before continuing
+stopifnot(identical(rownames(tax_agg), colnames(abund_clust)))
+
+# Assign simplified GeneType labels used throughout the networks (which are built via next scripts) 
+tax_agg$GeneType <- dplyr::case_when(
+  tax_agg$Type == "Antibiotic" ~ "ARG",
+  tax_agg$Type == "Metals"     ~ "MRG",
+  tax_agg$Type == "Biocides"   ~ "BRG",
+  tax_agg$Class == "Drug_and_biocide"           ~ "Drug_Biocide",
+  tax_agg$Class == "Drug_and_biocide_and_metal" ~ "Drug_Biocide_Metal",
+  tax_agg$Class == "Biocide_and_metal"          ~ "Biocide_Metal",
+  TRUE ~ "Multi"
+)
+
+table(tax_agg$GeneType)
