@@ -1,0 +1,26 @@
+# ============================================================
+# Script 01: Load Data
+# Use: Load the FPKM-normalised phyloseq object containing
+#          ARG, MRG (metal), and BRG (biocide) resistance gene
+#          abundances for the VGO-COPD cohort.
+# Input:   07a_VGO-COPD-ResCap_phyloseq_ARGMetalBiocide-FPKM(qPCR)_2026-04-21.RDS
+# Output:  phyloseq object `fpkm`
+# Author:  Hafsa Benouahi — MSc Biomedical Sciences, VU Amsterdam - Intern IRAS UU 
+# ============================================================
+
+library(phyloseq)
+
+# Set working directory to prefered data folder (for ex. mine is called Metalbio) 
+setwd("~/Desktop/METALBIO")
+
+# Load the phyloseq object
+# FPKM (normalised to 16S qPCR) is used rather than raw FPK counts
+
+fpkm <- readRDS("07a_VGO-COPD-ResCap_phyloseq_ARGMetalBiocide-FPKM(qPCR)_2026-04-21.RDS")
+
+# Inspect the object
+fpkm
+
+# Check of taxonomy categories available
+# (Type column distinguishes Antibiotic / Metals / Biocides / Multi-compound)
+table(tax_table(fpkm)[, "Type"])
