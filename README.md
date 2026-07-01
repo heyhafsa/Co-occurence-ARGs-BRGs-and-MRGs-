@@ -47,7 +47,7 @@ BiocManager::install("phyloseq")
 
 4. Data availability
 
-This pipeline runs on a phyloseq object derived from the VGO-COPD cohort (patient-level resistome data) and is not included in this repository due to participant privacy. The expected input is:
+This pipeline runs on a phyloseq object derived from the VGO-COPD cohort (patient-level resistome data). The expected input is:
 
 07a_VGO-COPD-ResCap_phyloseq_ARGMetalBiocide-FPKM(qPCR)_2026-04-21.RDS
 containing 1303 taxa (genes) across 72 samples, with a `tax_table()` including `Type` (Antibiotic / Metals / Biocides / Multi-compound), `Class`, and `Cluster90` columns.
