@@ -50,10 +50,7 @@ build_network <- function(type_a, type_b, filename) {
                     dimnames = list(nodes_keep, nodes_keep))
     mask[nodes_a, nodes_b] <- TRUE
     mask[nodes_b, nodes_a] <- TRUE
-  } else {
-    mask <- matrix(TRUE, nrow(rho_sub), ncol(rho_sub),
-                    dimnames = list(nodes_keep, nodes_keep))
-  }
+  } 
 
   sig_mat <- (padj_sub < 0.01) & (abs(rho_sub) >= 0.6) & mask
   diag(sig_mat) <- FALSE
